@@ -26,6 +26,7 @@ async def classify(client: httpx.AsyncClient, text: str) -> dict:
     #       client.post(url, json=..., timeout=<seconds>)
     #   Use settings.INFERENCE_TIMEOUT_S (1 s), not a number typed in here.
     #   When the time runs out, httpx raises httpx.TimeoutException.
+    
     #
     # Step 2. Errors. r.raise_for_status() raises httpx.HTTPStatusError when
     #   the inference service answers with an error (HTTP 4xx or 5xx).
@@ -43,6 +44,9 @@ async def classify(client: httpx.AsyncClient, text: str) -> dict:
     #
     # Check: python -m pytest tests/test_task1_fallback.py -v
     #   (normal answer -> "scored"; hang or HTTP 500 -> "pending" within ~1 s)
-    r = await client.post(f"{settings.INFERENCE_URL}/predict", json={"text": text})
-    r.raise_for_status()
-    return {**r.json(), "status": "scored"}
+    try:
+        r = await client.post(f"{settings.INFERENCE_URL}/predict", json={"text": text}, timeout=settings.INFERENCE_TIMEOUT_S)
+        r.raise_for_status()
+        return {**r.json(), "status": "scored"}
+    except httpx.HTTPError:
+        return dict(PENDING)   

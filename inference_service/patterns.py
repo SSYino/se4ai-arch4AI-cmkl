@@ -22,7 +22,15 @@ async def cascade(text, small, large, threshold):
     #
     # Step 1. Ask the small model and keep its answer in a variable.
     #   small.predict() is a normal function: call it without await.
-    #
+    
+    small_prediction = small.predict(text)
+    confidence = small_prediction["confidence"]
+    if confidence >= threshold:
+        return small_prediction
+    else:
+        large_prediction = await large.predict(text)
+        return large_prediction
+
     # Step 2. Decide. Read the answer's confidence (a Prediction is a dict,
     #   so use ["confidence"]) and compare it with threshold. Confidence
     #   *equal* to the threshold counts as confident.
@@ -39,7 +47,6 @@ async def cascade(text, small, large, threshold):
     # Check: python -m pytest tests/test_task2_cascade.py -v
     #   (confident -> "small" and 0 large calls; unsure -> "large";
     #    confidence == threshold -> "small"; threshold 1.0 -> always "large")
-    raise NotImplementedError("Task 2: implement cascade() in inference_service/patterns.py")
 
 
 # ---------------------------------------------------------------- Task 3
