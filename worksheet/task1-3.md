@@ -1,8 +1,8 @@
 # Week 6 worksheet: serving patterns
 
-**Name:**
+**Name:** Gianmario Carta
 
-**Student ID:**
+**Student ID:** 01224055
 
 This is **individual work**: each student completes and submits their own copy, in their own fork.
 
@@ -12,19 +12,19 @@ Copy result rows from `results/runs.csv` (or the load test's output) into the ta
 
 | Run | p50 ms | p95 ms | accuracy | large calls |
 |---|---|---|---|---|
-| t0-large | | | | |
-| t0-small | | | | |
+| t0-large |513|661|93.5%|100%|
+| t0-small |84|205|72.5%|0%|
 
 **Q0.** What does the large model buy, and what does it cost?
 
->
+> Gives better accuracy at the cost of slower inference speed
 
 ## Task 1: Fallback prediction (copy the Task 1 results from `results/runs.csv` here)
 
 | Run | run time (s) | p50 ms | p95 ms | errors | pending | accuracy |
 |---|---|---|---|---|---|---|
-| t1-before | | | | | | |
-| t1-after | | | | | | |
+| t1-before |28.6|234|368|20|0|92.8%|
+| t1-after |9.8|408|1027|0|23|93.8%|
 
 **Q1.1** In `t1-before`, p50 can look *better* than the baseline. Why is p50 misleading here? Which column tells the real story?
 
@@ -46,10 +46,10 @@ Copy result rows from `results/runs.csv` (or the load test's output) into the ta
 
 | Run | threshold | p50 ms | p95 ms | accuracy | large calls |
 |---|---|---|---|---|---|
-| t2-0.6 | 0.6 | | | | |
-| t2-0.7 | 0.7 | | | | |
-| t2-0.8 | 0.8 | | | | |
-| t2-0.9 | 0.9 | | | | |
+| t2-0.6 | 0.6 |23|499|91.5%|38%|
+| t2-0.7 | 0.7 |373|572|93%|53%|
+| t2-0.8 | 0.8 |431|568|93.5%|64%|
+| t2-0.9 | 0.9 |477|599|93.5%|77%|
 
 **Q2.1** Which threshold would you deploy for CampusEats, and why? Name the quality you give up.
 
@@ -67,7 +67,7 @@ Copy result rows from `results/runs.csv` (or the load test's output) into the ta
 
 | Run | p50 ms | p95 ms | accuracy | large calls | cache hits |
 |---|---|---|---|---|---|
-| t3-cache | | | | | |
+| t3-cache |21|521|93%|38%|35%|
 
 **Q3.1** Which reviews benefit from the cache, and which never will?
 
