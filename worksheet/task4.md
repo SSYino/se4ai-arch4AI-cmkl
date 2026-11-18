@@ -34,24 +34,39 @@ The three most important quality requirements for this scenario, each with a num
 
 | # | Quality | Requirement |
 |---|---|---|
-| 1 | | |
-| 2 | | |
-| 3 | | |
+| 1 |Accuracy|At least 95% of all alerts sent must be for truly negative reviews.|
+| 2 |Performance|The owner must receive the alert within 2 seconds of the review being posted, at a peak of 40 reviews/s.|
+| 3 |Capacity|At a 40 reviews/s peak, at most 20 calls/s must be sent to the large model.|
 
 ## 2. Design
 
 Your topology, the patterns you add, and a container-level diagram (C4 level 2). The C4 diagram must be written in Mermaid.
 
+I will choose to do a Hybrid approach where the large model will only be remotely called for uncertain cases.
+I will use all patters from earlier: Cascade, Cache, and Fallback. I will also add an alert gate that will only send an alert when it has sufficient confidence that it is negative.
+
 ```mermaid
 C4Container
-    title Your design: container diagram
-    %% Replace the example below with your own people, containers and relationships.
-    %% See the CampusEats C4 diagram in README.md for the full syntax.
-    Person(customer, "Customer", "Writes restaurant reviews")
+    title CampusEats owner-alert deployment
+    Person(customer, "Customer", "Posts restaurant reviews")
+    Person(owner, "Restaurant owner", "Receives negative-review alerts")
+
     System_Boundary(campuseats, "CampusEats") {
-        Container(review, "Review service", "Python, FastAPI", "What it does")
+        Container(gateway, "API gateway", "FastAPI", "Public entry point")
+        Container(review, "Review service", "FastAPI", "Stores reviews and applies local fast model")
+        Container(cache, "Prediction cache", "In-process LRU", "Reuses predictions for repeated text")
+        Container(large, "Large-model service", "Remote model API", "Verifies uncertain reviews")
+        Container(queue, "Pending-review queue", "Durable queue/batch worker", "Retries fallback reviews")
+        Container(alerts, "Alert service", "Push notification provider", "Notifies owners")
     }
-    Rel(customer, review, "Posts reviews", "HTTP/JSON")
+
+    Rel(customer, gateway, "Posts review", "HTTP/JSON")
+    Rel(gateway, review, "Forwards review", "HTTP/JSON")
+    Rel(review, cache, "Checks cached prediction")
+    Rel(review, large, "Sends uncertain reviews", "HTTP/JSON")
+    Rel(review, queue, "Stores pending reviews", "Async")
+    Rel(review, alerts, "Sends verified negative alert", "Push API")
+    Rel(alerts, owner, "Delivers notification", "Push")
 ```
 
 ## 3. Evidence
@@ -60,25 +75,43 @@ Which runs support your choice? Show the numbers and the capacity arithmetic: ho
 
 | Run | What it shows |
 |---|---|
-| | |
-| | |
+|t0-large|93.5% accuracy, 513 ms p50, 661 ms p95, 100% large calls|
+|t0-small|72.5% accuracy, 84 ms p50, 205 ms p95, 0% large calls|
+|t2-0.7|93.0% accuracy, 572 ms p95, 53% large calls|
+|t3-cache|93.0% accuracy, 521 ms p95, 38% large calls, 35% cache hits|
+|t1-after|0 errors but 23 pending reviews under 10% hanging calls|
+
+Capacity calculation for the cached hybrid design:
+> 40 reviews/s × 38% large-model calls = 15.2 large calls/s
+Therefore, t3-cache is below the 20 calls/second limit. By comparison:
+> t2-0.7: 40 × 53% = 21.2 calls/s       exceeds capacity
+> t2-0.9: 40 × 77% = 30.8 calls/s       exceeds capacity
+> t0-large: 40 × 100% = 40 calls/s      exceeds capacity
+
 
 ## 4. ADR
 
 An **architecture decision record (ADR)** is a short document that records one design decision: the situation that forced it (context), what you decided, and what follows from it, good and bad (consequences). Fill in the template below.
 
-**Title:**
+**Title:** Hybrid cascade with caching and fallback for owner alerts
 
 **Status:** Proposed
 
-**Context:**
+**Context:** The large model is more accurate but supports only 20 calls/second and is slow/costly. The small model is fast but less accurate. Owner trust requires avoiding incorrect negative alerts, while notifications must arrive within 2 seconds.
 
-**Decision:**
+**Decision:** Use T3 Hybrid. Check the cache first, use the small model locally, escalate uncertain cases to the large service, send alerts only for sufficiently trusted negative predictions, and save timeout/error cases as pending for asynchronous retry.
 
 **Consequences:**
 - Positive:
+    - t3-cache suggests approximately 15.2 large calls/second at peak, below the 20-call limit.
+    - Cache hits and local predictions reduce latency and cost.
+    - Fallback prevents inference failures from losing reviews.
+    - Conservative alerting protects owner trust by allowing missed alerts rather than uncertain alerts.
 - Negative:
+    - Some reviews remain pending or receive no immediate alert.
+    - The large model remains a remote dependency.
+    - Cache invalidation and model-version management are required.
 
 **Alternatives considered:** at least one topology you rejected, and why.
 
->
+> T4 asynchronous/batch as the primary topology because the delayed batch scoring cannot guarantee a notification withing 2 seconds.
